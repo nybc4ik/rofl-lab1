@@ -1,7 +1,7 @@
 # Online Python - IDE, Editor, Compiler, Interpreter
 import re
 from sympy import simplify as sympy_simplify, expand, Symbol
-#from z3 import *
+from z3 import *
 
 '''
   The simplify_expression function simplifies expressions. 
