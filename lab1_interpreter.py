@@ -1,6 +1,7 @@
 # Online Python - IDE, Editor, Compiler, Interpreter
 import re
 from sympy import simplify as sympy_simplify, expand, Symbol
+from random import randint
 from z3 import *
 
 '''
@@ -52,13 +53,27 @@ def to_prefix_notation(expression, index):
 
 #trs_variables=["x","y"]
 trs_variables = str(input("variables = ")).split(',')
-#trs_rules=["f(x)=a", "g(x)=f(f(x))", "u(x,y)=c(g(x),f(y))"]
+''''
+#trs_rules=[
+f(x)=a
+g(x)=f(f(x))
+u(x,y)=c(g(x),f(y))
+"]'
+'''
 trs_rules=[]
 rules= input("input trs rules\n")
 while rules!= "":
     trs_rules.append(rules)
     rules=input()
-#grammar_rules=["a=1", "f(x)=x**2+2*x+1", "g(x)=x**3", "u(x,y)=x*y", "c(x,y)=x+y"]
+''''
+#grammar_rules=["
+a=1
+f(x)=x**2+2*x+1
+g(x)=x**3
+u(x,y)=x*y
+c(x,y)=x+y
+"]
+'''
 grammar_rules=[]
 rules= input("input grammar rules\n")
 while rules!= "":
@@ -71,7 +86,6 @@ for i in range(len(grammar_rules)):
 #Я забыла как это действие с залезанием в скобки называется по нормальному, поэтому пока   будет называться podmena
 #Потом заменю
 def podmena(string):
-    
     i=0
     if not (string[i] in constructors):
         return trs_variables[trs_variables.index(string[i])]
@@ -84,17 +98,93 @@ def podmena(string):
     i=2
     s=""
     k=0 
+    c=1
     while k!=n and i<len(string):
-        if string[i]==',':
+        if string[i]==',' and c==1:
             rule=rule.replace(grammar_rules[con][2*k+2],"("+podmena(s)+")")
             k+=1
             s=""
             i+=1
+        elif string[i]==')':
+            c-=1
+        elif string[i]=='(':
+            c+=1
         s+=string[i]
         i+=1
     s=s[:-1]
     rule=rule.replace(grammar_rules[con][2*k+2],"("+podmena(s)+")")
     return rule
+
+def random_line(k,n,terms,l):
+    t=randint(0,k)
+    if l==1:
+        s=terms[t][0]+'('
+        for i in range(n[t]):
+            s=s+trs_variables[0]+'0,'
+        s=s[:-1]+')'
+        return s
+    s=terms[t][0]+'('
+    for i in range(n[t]):
+        s=s+random_line(k,n,terms,l-1)+','
+    s=s[:-1]+')'
+    return s
+    
+    
+def demo():
+    k=0
+    n=[]
+    terms=[]
+    for s in grammar_rules:
+        if s[1]=='(':
+            k+=1 
+            n.append(s.count(',')+1)
+            terms.append(s)
+    l=randint(1,10)
+    s1=random_line(k-1,n,terms,l)
+    li=randint(1,5)
+    s2=s1
+    for i in range (li):
+        for j in trs_rules:
+            if s2.find(j[0])!=-1:
+                a=s2.find(j[0])+2
+                b=0
+                for rule in range(k):
+                    if terms[rule][0]==j[0]:
+                        b=rule
+                        break
+                var_n=n[b]
+                new_s=j[j.find('=')+1:]
+                sub_s=""
+                c=1
+                t=0
+                i=0
+                while t==0:
+                    if s2[a]==',':
+                        if c==1:
+                            new_s=new_s.replace(terms[b][2*i+2],sub_s)
+                            sub_s=""
+                            i+=1
+                        else:
+                            sub_s=sub_s+s2[a]
+                    elif s2[a]==')':
+                        if c==1:
+                            new_s=new_s.replace(terms[b][2*i+2],sub_s)
+                            sub_s=""
+                            t=1
+                        else:
+                            sub_s=sub_s+s2[a]
+                            c+=1
+                    elif s2[a]=='(':
+                        sub_s=sub_s+s2[a]
+                        c-=1
+                    else:
+                        sub_s=sub_s+s2[a]
+                    a+=1
+                s2=s2[:s2.find(j[0])]+new_s+s2[a:]
+                break
+    s1=s1.replace(trs_variables[0]+'0', trs_variables[0])
+    s2=s2.replace(trs_variables[0]+'0', trs_variables[0])
+    return s1,s2
 
 
 
@@ -136,7 +226,17 @@ prefix_expression, variables_set = to_prefix_notation(simplified_expression, '0'
 print("Prefix notation:", prefix_expression)
 print("Set of variables: ", variables_set)
 '''
-
+''''
+s1,s2 = demo()
+print(s1)
+print(s2)
+s1=str(s1).replace(trs_variables[0], '1')
+s2=str(s2).replace(trs_variables[0], '1')
+s1=simplify_expression(s1)
+s2=simplify_expression(s2)
+print(s1)
+print(s2)
+'''
 with open('lab1.txt', 'r') as f:
     smt_code = f.read()
 solver = Solver()
@@ -150,8 +250,19 @@ if result == sat:
         print("%s = %s" % (decl, model[decl]))
 elif result == unsat:
     print("Verification success\nThere will be DEMO\n")
+    s1,s2 = demo()
+    print(s1)
+    print(s2)
+    s1=simplify_expression(podmena(s1))
+    s2=simplify_expression(podmena(s2))
+    print(s1)
+    print(s2)
+    s1=str(s1).replace(trs_variables[0], '1')
+    s2=str(s2).replace(trs_variables[0], '1')
+    s1=simplify_expression(s1)
+    s2=simplify_expression(s2)
+    print(s1)
+    print(s2)
 else:
     print("Unknown")
-
-
 
