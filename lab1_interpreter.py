@@ -49,71 +49,112 @@ def to_prefix_notation(expression, index):
     prefix_expression += ')'
     return prefix_expression, variables_set
 
-#Пока что временно ввод всего чего хотим вручную
+def get_arguments(function):
+    i = 2
+    result = []
+    start = i
+    round_brackets = 0
+    while i < len(function):
+        if function[i] == '(':
+            round_brackets += 1
+        elif function[i] == ')':
+            round_brackets -= 1
+        elif function[i] == ',' and round_brackets == 0:
+            result.append(function[start:i])
+            start = i+1
+        i += 1
+    result.append(function[start: -1])
+    return result
 
-#trs_variables=["x","y"]
-trs_variables = str(input("variables = ")).split(',')
-''''
-#trs_rules=[
-f(x)=a
-g(x)=f(f(x))
-u(x,y)=c(g(x),f(y))
-"]'
 '''
-trs_rules=[]
-rules= input("input trs rules\n")
-while rules!= "":
-    trs_rules.append(rules)
-    rules=input()
-''''
-#grammar_rules=["
-a=1
-f(x)=x**2+2*x+1
-g(x)=x**3
-u(x,y)=x*y
-c(x,y)=x+y
-"]
+     Replaces function arguments with new values.
+     Returns the right-hand side of the expression.
 '''
-grammar_rules=[]
-rules= input("input grammar rules\n")
-while rules!= "":
-    grammar_rules.append(rules)
-    rules=input()
+def change_arguments(function_definition, new_args):
+    result = ""
+    parts_of_definition = function_definition.split('=')
+    old_args = get_arguments(parts_of_definition[0])
+    for symbol in parts_of_definition[1]:
+        if symbol.isalpha():
+            result = result + '(' + new_args[old_args.index(symbol)] + ')'
+        else:
+            result += symbol
+    return result
+
+def is_constructor(c, constructors):
+    for i in constructors:
+        if c == i:
+            return True
+    return False
+
+'''
+    Finds the inner function that starts at the given 'start' index.
+    Returns the index of the element after that function
+'''
+def get_internal_function(str, start, constants):
+    if str[start] in constants:
+        return str[start], start+1
+    else:
+        i = start + 2
+        round_brackets = 1
+
+        while round_brackets > 0:
+            if str[i] == '(':
+                round_brackets += 1
+            elif str[i] == ')':
+                round_brackets -= 1
+            i += 1
+        return str[start:i], i
+
+def find_function_definition(function, grammar_rules):
+    for rule in grammar_rules:
+        if function[0] == rule[0]:
+            return rule
+def substitute_interpretation(function, constructors, grammar_rules, constants):
+    function_definition = find_function_definition(function, grammar_rules)
+
+    #Situations where the function is just a constant or a variable
+    if function_definition == None:
+        return function
+    elif function in constants:
+        return function_definition[2:]
+    args = get_arguments(function)
+    for i in range(len(args)):
+        arg = args[i]
+        j = 0
+        new_arg = ""
+        while j < len(arg):
+            if is_constructor(arg[j], constructors):
+                internal_function, j = get_internal_function(arg, j, constants)
+                new_arg = new_arg + '(' + substitute_interpretation(internal_function, constructors, grammar_rules, constants) + ')'
+            else:
+                new_arg += arg[j]
+                j+=1
+        args[i] = simplify_expression(new_arg)
+    return simplify_expression(change_arguments(function_definition, args))
+
+
+
+
+trs_variables=["x","y"]
+trs_rules=[
+    "f(x,s(y))=s(f(x,y))",
+    "f(x,z)=x",
+    "g(x,s(y))=f(g(x,y),x)",
+    "g(x,z)=z"
+]
+grammar_rules=[
+    "z=0",
+    "s(x)=x+1",
+    "f(x,y)=x+y*2",
+    "g(x,y)=x*y*3"
+]
+constants = set()
 constructors=[]
-for i in range(len(grammar_rules)):
-    constructors.append(grammar_rules[i][0])
-
-#Я забыла как это действие с залезанием в скобки называется по нормальному, поэтому пока   будет называться podmena
-#Потом заменю
-def podmena(string):
-    i=0
-    if not (string[i] in constructors):
-        return trs_variables[trs_variables.index(string[i])]
-    con=constructors.index(string[i])
-    
-    if grammar_rules[con][1]=='=':
-        return grammar_rules[con][2:]
-    n=grammar_rules[con].count(',')+1
-    rule=grammar_rules[con][2*n+3:]
-    i=2
-    s=""
-    k=0 
-    c=1
-    while k!=n and i<len(string):
-        if string[i]==',' and c==1:
-            rule=rule.replace(grammar_rules[con][2*k+2],"("+podmena(s)+")")
-            k+=1
-            s=""
-            i+=1
-        elif string[i]==')':
-            c-=1
-        elif string[i]=='(':
-            c+=1
-        s+=string[i]
-        i+=1
-    s=s[:-1]
-    rule=rule.replace(grammar_rules[con][2*k+2],"("+podmena(s)+")")
-    return rule
+for rule in grammar_rules:
+    constructors.append(rule[0])
+    if rule[1] == '=':
+        constants.add(rule[0])
 
 def random_line(k,n,terms,l):
     t=randint(0,k)
@@ -140,7 +181,7 @@ def demo():
             n.append(s.count(',')+1)
             terms.append(s)
     l=randint(1,10)
-    s1=random_line(k-1,n,terms,l)
+    s1 = random_line(k - 1, n, terms, l)
     li=randint(1,5)
     s2=s1
     for i in range (li):
@@ -197,11 +238,10 @@ with open('lab1.txt', 'w') as f:
         
         start = trs_rules[cr][:(trs_rules[cr].find('='))]
         end = trs_rules[cr][(trs_rules[cr].find('=')+1):]
-        
-        start=simplify_expression(podmena(start))
-        end=simplify_expression(podmena(end))
-        
-        
+
+        start = substitute_interpretation(start,constructors, grammar_rules, constants )
+        end = substitute_interpretation(end, constructors, grammar_rules, constants)
+
         start_expression, start_variables_set = to_prefix_notation(start, str(cr))
         end_expression, end_variables_set = to_prefix_notation(end, str(cr))
         variables_set=start_variables_set|end_variables_set
@@ -209,34 +249,14 @@ with open('lab1.txt', 'w') as f:
         end_expressions.append(end_expression)
         for v in variables_set:
             f.write("(declare-fun " + v + " () Int)\n")
-        #for v in variables_set:
-        #    f.write("(assert (>= " + v + " 0))\n")
+        for v in variables_set:
+            f.write("(assert (>= " + v + " 0))\n")
     for cr in range(len(trs_rules)): 
         f.write("(assert (<= " + start_expressions[cr] + " " + end_expressions[cr] + "))\n")
     f.write("(check-sat)\n")
     f.write("(get-model)")
 
 
-''''
-expression = input("Enter expression: ")
-simplified_expression = simplify_expression(expression)
-print("Simplified expression:", simplified_expression)
-
-prefix_expression, variables_set = to_prefix_notation(simplified_expression, '0')
-print("Prefix notation:", prefix_expression)
-print("Set of variables: ", variables_set)
-'''
-''''
-s1,s2 = demo()
-print(s1)
-print(s2)
-s1=str(s1).replace(trs_variables[0], '1')
-s2=str(s2).replace(trs_variables[0], '1')
-s1=simplify_expression(s1)
-s2=simplify_expression(s2)
-print(s1)
-print(s2)
-'''
 with open('lab1.txt', 'r') as f:
     smt_code = f.read()
 solver = Solver()
@@ -244,17 +264,17 @@ solver.add(parse_smt2_string(smt_code))
 result = solver.check()
 
 if result == sat:
-    print("Сounterexample")
+    print("Сounterexample:")
     model = solver.model()
     for decl in model:
         print("%s = %s" % (decl, model[decl]))
 elif result == unsat:
-    print("Verification success\nThere will be DEMO\n")
+    print("Verification success\nDemo:\n")
     s1,s2 = demo()
     print(s1)
     print(s2)
-    s1=simplify_expression(podmena(s1))
-    s2=simplify_expression(podmena(s2))
+    s1=substitute_interpretation(s1, constructors, grammar_rules, constants)
+    s2=substitute_interpretation(s2, constructors, grammar_rules, constants)
     print(s1)
     print(s2)
     s1=str(s1).replace(trs_variables[0], '1')
