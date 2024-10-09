@@ -134,7 +134,139 @@ def substitute_interpretation(function, constructors, grammar_rules, constants):
     return simplify_expression(change_arguments(function_definition, args))
 
 
+def interpret(trs_variables, trs_rules,  grammar_rules):
+    result = ""
+    constants = set()
+    constructors = []
+    for rule in grammar_rules:
+        constructors.append(rule[0])
+        if rule[1] == '=':
+            constants.add(rule[0])
 
+    def random_line(k, n, terms, l):
+        t = randint(0, k)
+        if l == 1:
+            s = terms[t][0] + '('
+            for i in range(n[t]):
+                s = s + trs_variables[0] + '0,'
+            s = s[:-1] + ')'
+            return s
+        s = terms[t][0] + '('
+        for i in range(n[t]):
+            s = s + random_line(k, n, terms, l - 1) + ','
+        s = s[:-1] + ')'
+        return s
+
+    def demo():
+        k = 0
+        n = []
+        terms = []
+        for s in grammar_rules:
+            if s[1] == '(':
+                k += 1
+                n.append(s.count(',') + 1)
+                terms.append(s)
+        l = randint(1, 10)
+        s1 = random_line(k - 1, n, terms, l)
+        li = randint(1, 5)
+        s2 = s1
+        for i in range(li):
+            for j in trs_rules:
+                if s2.find(j[0]) != -1:
+                    a = s2.find(j[0]) + 2
+                    b = 0
+                    for rule in range(k):
+                        if terms[rule][0] == j[0]:
+                            b = rule
+                            break
+                    var_n = n[b]
+                    new_s = j[j.find('=') + 1:]
+                    sub_s = ""
+                    c = 1
+                    t = 0
+                    i = 0
+                    while t == 0:
+                        if s2[a] == ',':
+                            if c == 1:
+                                new_s = new_s.replace(terms[b][2 * i + 2], sub_s)
+                                sub_s = ""
+                                i += 1
+                            else:
+                                sub_s = sub_s + s2[a]
+                        elif s2[a] == ')':
+                            if c == 1:
+                                new_s = new_s.replace(terms[b][2 * i + 2], sub_s)
+                                sub_s = ""
+                                t = 1
+                            else:
+                                sub_s = sub_s + s2[a]
+                                c += 1
+                        elif s2[a] == '(':
+                            sub_s = sub_s + s2[a]
+                            c -= 1
+                        else:
+                            sub_s = sub_s + s2[a]
+                        a += 1
+                    s2 = s2[:s2.find(j[0])] + new_s + s2[a:]
+                    break
+        s1 = s1.replace(trs_variables[0] + '0', trs_variables[0])
+        s2 = s2.replace(trs_variables[0] + '0', trs_variables[0])
+        return s1, s2
+
+    # -----------------------------------------------------------------------------
+    start_expressions = []
+    end_expressions = []
+    with open('lab1.txt', 'w') as f:
+        for cr in range(len(trs_rules)):
+            trs_rules[cr] = trs_rules[cr].replace(" ", "")
+
+            start = trs_rules[cr][:(trs_rules[cr].find('='))]
+            end = trs_rules[cr][(trs_rules[cr].find('=') + 1):]
+
+            start = substitute_interpretation(start, constructors, grammar_rules, constants)
+            end = substitute_interpretation(end, constructors, grammar_rules, constants)
+
+            start_expression, start_variables_set = to_prefix_notation(start, str(cr))
+            end_expression, end_variables_set = to_prefix_notation(end, str(cr))
+            variables_set = start_variables_set | end_variables_set
+            start_expressions.append(start_expression)
+            end_expressions.append(end_expression)
+            for v in variables_set:
+                f.write("(declare-fun " + v + " () Int)\n")
+            for v in variables_set:
+                f.write("(assert (>= " + v + " 0))\n")
+        for cr in range(len(trs_rules)):
+            f.write("(assert (<= " + start_expressions[cr] + " " + end_expressions[cr] + "))\n")
+        f.write("(check-sat)\n")
+        f.write("(get-model)")
+
+    with open('lab1.txt', 'r') as f:
+        smt_code = f.read()
+    solver = Solver()
+    solver.add(parse_smt2_string(smt_code))
+    solver_result = solver.check()
+
+    if solver_result == sat:
+        result += "Сounterexample:\n"
+        model = solver.model()
+        for decl in model:
+            result += f"{decl} = {model[decl]}\n"
+    elif solver_result == unsat:
+        result += "Verification success\nDemo:\n"
+        s1, s2 = demo()
+        result += s1 + '\n' + s2 + '\n'
+        s1 = substitute_interpretation(s1, constructors, grammar_rules, constants)
+        s2 = substitute_interpretation(s2, constructors, grammar_rules, constants)
+        result += s1 + '\n' + s2 + '\n'
+
+        s1 = str(s1).replace(trs_variables[0], '1')
+        s2 = str(s2).replace(trs_variables[0], '1')
+        s1 = simplify_expression(s1)
+        s2 = simplify_expression(s2)
+        result += s1 + '\n' + s2 + '\n'
+    else:
+        return "Unknown"
+    return result
 
 trs_variables=["x","y"]
 trs_rules=[
@@ -149,140 +281,7 @@ grammar_rules=[
     "f(x,y)=x+y*2",
     "g(x,y)=x*y*3"
 ]
-constants = set()
-constructors=[]
-for rule in grammar_rules:
-    constructors.append(rule[0])
-    if rule[1] == '=':
-        constants.add(rule[0])
 
-def random_line(k,n,terms,l):
-    t=randint(0,k)
-    if l==1:
-        s=terms[t][0]+'('
-        for i in range(n[t]):
-            s=s+trs_variables[0]+'0,'
-        s=s[:-1]+')'
-        return s
-    s=terms[t][0]+'('
-    for i in range(n[t]):
-        s=s+random_line(k,n,terms,l-1)+','
-    s=s[:-1]+')'
-    return s
-    
-    
-def demo():
-    k=0
-    n=[]
-    terms=[]
-    for s in grammar_rules:
-        if s[1]=='(':
-            k+=1 
-            n.append(s.count(',')+1)
-            terms.append(s)
-    l=randint(1,10)
-    s1 = random_line(k - 1, n, terms, l)
-    li=randint(1,5)
-    s2=s1
-    for i in range (li):
-        for j in trs_rules:
-            if s2.find(j[0])!=-1:
-                a=s2.find(j[0])+2
-                b=0
-                for rule in range(k):
-                    if terms[rule][0]==j[0]:
-                        b=rule
-                        break
-                var_n=n[b]
-                new_s=j[j.find('=')+1:]
-                sub_s=""
-                c=1
-                t=0
-                i=0
-                while t==0:
-                    if s2[a]==',':
-                        if c==1:
-                            new_s=new_s.replace(terms[b][2*i+2],sub_s)
-                            sub_s=""
-                            i+=1
-                        else:
-                            sub_s=sub_s+s2[a]
-                    elif s2[a]==')':
-                        if c==1:
-                            new_s=new_s.replace(terms[b][2*i+2],sub_s)
-                            sub_s=""
-                            t=1
-                        else:
-                            sub_s=sub_s+s2[a]
-                            c+=1
-                    elif s2[a]=='(':
-                        sub_s=sub_s+s2[a]
-                        c-=1
-                    else:
-                        sub_s=sub_s+s2[a]
-                    a+=1
-                s2=s2[:s2.find(j[0])]+new_s+s2[a:]
-                break
-    s1=s1.replace(trs_variables[0]+'0', trs_variables[0])
-    s2=s2.replace(trs_variables[0]+'0', trs_variables[0])
-    return s1,s2
-
-
-
-#-----------------------------------------------------------------------------
-start_expressions=[]
-end_expressions=[]
-with open('lab1.txt', 'w') as f:
-    for cr in range(len(trs_rules)):
-        trs_rules[cr] = trs_rules[cr].replace(" ", "")
-        
-        start = trs_rules[cr][:(trs_rules[cr].find('='))]
-        end = trs_rules[cr][(trs_rules[cr].find('=')+1):]
-
-        start = substitute_interpretation(start,constructors, grammar_rules, constants )
-        end = substitute_interpretation(end, constructors, grammar_rules, constants)
-
-        start_expression, start_variables_set = to_prefix_notation(start, str(cr))
-        end_expression, end_variables_set = to_prefix_notation(end, str(cr))
-        variables_set=start_variables_set|end_variables_set
-        start_expressions.append(start_expression)
-        end_expressions.append(end_expression)
-        for v in variables_set:
-            f.write("(declare-fun " + v + " () Int)\n")
-        for v in variables_set:
-            f.write("(assert (>= " + v + " 0))\n")
-    for cr in range(len(trs_rules)): 
-        f.write("(assert (<= " + start_expressions[cr] + " " + end_expressions[cr] + "))\n")
-    f.write("(check-sat)\n")
-    f.write("(get-model)")
-
-
-with open('lab1.txt', 'r') as f:
-    smt_code = f.read()
-solver = Solver()
-solver.add(parse_smt2_string(smt_code))
-result = solver.check()
-
-if result == sat:
-    print("Сounterexample:")
-    model = solver.model()
-    for decl in model:
-        print("%s = %s" % (decl, model[decl]))
-elif result == unsat:
-    print("Verification success\nDemo:\n")
-    s1,s2 = demo()
-    print(s1)
-    print(s2)
-    s1=substitute_interpretation(s1, constructors, grammar_rules, constants)
-    s2=substitute_interpretation(s2, constructors, grammar_rules, constants)
-    print(s1)
-    print(s2)
-    s1=str(s1).replace(trs_variables[0], '1')
-    s2=str(s2).replace(trs_variables[0], '1')
-    s1=simplify_expression(s1)
-    s2=simplify_expression(s2)
-    print(s1)
-    print(s2)
-else:
-    print("Unknown")
+result = interpret(trs_variables, trs_rules,  grammar_rules)
+print(result)
 
