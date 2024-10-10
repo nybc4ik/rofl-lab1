@@ -166,7 +166,7 @@ def interpret(trs_variables, trs_rules,  grammar_rules):
                 k += 1
                 n.append(s.count(',') + 1)
                 terms.append(s)
-        l = randint(1, 10)
+        l = randint(1, 5)
         s1 = random_line(k - 1, n, terms, l)
         li = randint(1, 5)
         s2 = s1
